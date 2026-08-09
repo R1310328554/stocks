@@ -139,15 +139,21 @@ class DataProvider:
         return demo_data.alerts(limit=limit)
 
     def resolve_name(self, ts_code: str) -> dict:
+        from app.services.datasources.multi_asset import resolve_asset
+
         for s in self.list_stocks():
             if s["ts_code"] == ts_code or s["symbol"] == ts_code:
-                return s
+                return {**s, "asset_type": "Stock"}
+        asset = resolve_asset(ts_code)
+        if asset.get("name") and asset["name"] != ts_code:
+            return asset
         return {
             "ts_code": ts_code if "." in ts_code else f"{ts_code}.SH",
             "symbol": ts_code.split(".")[0],
             "name": ts_code,
             "industry": "未知",
             "market": "",
+            "asset_type": "Stock",
         }
 
 

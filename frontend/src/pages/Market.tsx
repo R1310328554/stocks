@@ -1,26 +1,29 @@
 import { useEffect, useState } from "react";
-import { api, type AlertItem, type MarketOverview, type SignalItem } from "../api";
+import { api, type AlertItem, type MarketOverview, type SignalItem, type SourceHealth } from "../api";
 
 export function Market() {
   const [market, setMarket] = useState<MarketOverview | null>(null);
   const [signals, setSignals] = useState<SignalItem[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [news, setNews] = useState<{ id: string; title: string; name: string; published_at: string }[]>([]);
+  const [sources, setSources] = useState<SourceHealth | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     void (async () => {
       try {
-        const [m, s, a, n] = await Promise.all([
+        const [m, s, a, n, src] = await Promise.all([
           api.market(),
           api.signals(),
           api.alerts(),
           api.news(),
+          api.sources(),
         ]);
         setMarket(m);
         setSignals(s.items);
         setAlerts(a.items);
         setNews(n.items);
+        setSources(src);
       } catch (e) {
         setError(e instanceof Error ? e.message : "加载失败");
       }
@@ -32,7 +35,7 @@ export function Market() {
       <div className="section-head">
         <div>
           <h2>数据看板</h2>
-          <p>市场情绪、热点板块、择时信号与异动盯盘。</p>
+          <p>权威数据源健康度、市场情绪、热点与择时信号。</p>
         </div>
       </div>
 
@@ -138,6 +141,28 @@ export function Market() {
               ))}
             </ul>
           </div>
+
+          {sources && (
+            <div className="panel" style={{ marginTop: "0.9rem" }}>
+              <h3 style={{ marginTop: 0 }}>
+                数据源健康度 · 可靠分 {sources.reliability_score}
+              </h3>
+              <p className="muted">{sources.guidance}</p>
+              <div className="grid-3">
+                {sources.items.map((s) => (
+                  <div key={s.id}>
+                    <strong>
+                      {s.name} <span className="tag">{s.tier}</span>
+                    </strong>
+                    <div className="muted">
+                      {s.authority} · {s.status}
+                    </div>
+                    <div className="muted">{s.coverage.join(" / ")}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </section>
