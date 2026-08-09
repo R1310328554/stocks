@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from app.core.config import get_settings
+from app.services.advice.trade_plan import build_trade_advice
 from app.services.datasources import get_data_provider
 from app.services.indicators.technical import compute_indicators, detect_patterns
 
@@ -166,27 +167,39 @@ class MultiFactorPicker:
         items = []
         for i, row in df.iterrows():
             reason = self._build_reason(row)
+            factors = {
+                "value": round(float(row["value_score"]), 2),
+                "growth": round(float(row["growth_score"]), 2),
+                "quality": round(float(row["quality_score"]), 2),
+                "momentum": round(float(row["momentum_score"]), 2),
+                "capital": round(float(row["capital_score"]), 2),
+                "sentiment": round(float(row["sentiment_score"]), 2),
+            }
+            advice = build_trade_advice(
+                close=float(row["close"]),
+                total_score=float(row["total_score"]),
+                volatility=float(row.get("volatility", 20)),
+                rsi=float(row.get("rsi14", 50)),
+                ret_20=float(row.get("ret_20", 0)),
+                asset_type="Stock",
+                factors=factors,
+            )
             items.append(
                 {
                     "rank": int(i) + 1,
                     "ts_code": row["ts_code"],
                     "name": row["name"],
                     "industry": row["industry"],
+                    "asset_type": "Stock",
                     "total_score": round(float(row["total_score"]), 2),
-                    "factors": {
-                        "value": round(float(row["value_score"]), 2),
-                        "growth": round(float(row["growth_score"]), 2),
-                        "quality": round(float(row["quality_score"]), 2),
-                        "momentum": round(float(row["momentum_score"]), 2),
-                        "capital": round(float(row["capital_score"]), 2),
-                        "sentiment": round(float(row["sentiment_score"]), 2),
-                    },
+                    "factors": factors,
                     "reason": reason,
                     "close": round(float(row["close"]), 2),
                     "pct_chg": round(float(row["pct_chg"]), 2),
                     "pe": round(float(row["pe"]), 2),
                     "pb": round(float(row["pb"]), 2),
                     "roe": round(float(row["roe"]), 2),
+                    "advice": advice,
                 }
             )
 

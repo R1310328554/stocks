@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, type DiagnosisReport } from "../api";
+import { AdviceCard } from "../components/AdviceCard";
 
 function Sparkline({ series }: { series?: { dates: string[]; close: number[]; ma20: number[] } }) {
   const path = useMemo(() => {
@@ -62,17 +63,30 @@ export function Diagnosis() {
     | { dates: string[]; close: number[]; ma20: number[] }
     | undefined;
 
+  const sections = report
+    ? (
+        [
+          { title: "基本面", sec: report.fundamental },
+          { title: "技术面", sec: report.technical },
+          { title: "资金面", sec: report.capital },
+          ...(report.sentiment ? [{ title: "情绪面", sec: report.sentiment }] : []),
+        ] as const
+      )
+    : [];
+
   return (
     <section className="section">
       <div className="section-head">
         <div>
           <h2>智能诊股</h2>
-          <p>基本面、技术面、资金面一次看清，并给出风险提示。</p>
+          <p>宏观→行业→公司→交易四层拆解，并输出持有/止损/止盈建议。</p>
         </div>
       </div>
 
       <form className="panel input-row" onSubmit={onSubmit} style={{ marginBottom: "1rem" }}>
         <input
+          id="diag-code"
+          name="code"
           type="text"
           value={code}
           onChange={(e) => setCode(e.target.value)}
@@ -98,18 +112,32 @@ export function Diagnosis() {
               </div>
             </div>
             <div className="panel">
-              <div className="stat-label">基本面</div>
+              <div className="stat-label">基本面 / 技术面</div>
               <div className="stat-value">
-                {report.fundamental.score} · {report.fundamental.level}
+                {report.fundamental.score} / {report.technical.score}
               </div>
             </div>
             <div className="panel">
-              <div className="stat-label">技术 / 资金</div>
+              <div className="stat-label">资金 / 情绪</div>
               <div className="stat-value">
-                {report.technical.score} / {report.capital.score}
+                {report.capital.score} / {report.sentiment?.score ?? "-"}
               </div>
             </div>
           </div>
+
+          {report.layers && (
+            <div className="panel" style={{ marginBottom: "0.9rem" }}>
+              <h3 style={{ marginTop: 0 }}>多层次分析框架</h3>
+              <div className="grid-2">
+                {Object.entries(report.layers).map(([k, v]) => (
+                  <div key={k}>
+                    <div className="stat-label">{k}</div>
+                    <div>{v}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid-2">
             <div className="panel">
@@ -119,21 +147,14 @@ export function Diagnosis() {
                 {(report.signals || []).slice(0, 4).join(" · ") || "暂无即时信号"}
               </div>
             </div>
-            <div className="panel">
-              <h3 style={{ marginTop: 0 }}>风险提示</h3>
-              <ul className="list-plain">
-                {report.risks.map((r) => (
-                  <li key={r}>{r}</li>
-                ))}
-              </ul>
-            </div>
+            <AdviceCard advice={report.advice} />
           </div>
 
           <div className="grid-3" style={{ marginTop: "0.9rem" }}>
-            {[report.fundamental, report.technical, report.capital].map((sec, idx) => (
-              <div className="panel" key={idx}>
+            {sections.map(({ title, sec }) => (
+              <div className="panel" key={title}>
                 <h3 style={{ marginTop: 0 }}>
-                  {idx === 0 ? "基本面" : idx === 1 ? "技术面" : "资金面"}
+                  {title} · {sec.score}
                 </h3>
                 <p className="muted">{sec.summary}</p>
                 <ul className="list-plain">
@@ -143,6 +164,14 @@ export function Diagnosis() {
                 </ul>
               </div>
             ))}
+            <div className="panel">
+              <h3 style={{ marginTop: 0 }}>风险提示</h3>
+              <ul className="list-plain">
+                {report.risks.map((r) => (
+                  <li key={r}>{r}</li>
+                ))}
+              </ul>
+            </div>
           </div>
         </>
       )}

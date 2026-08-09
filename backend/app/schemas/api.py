@@ -12,6 +12,7 @@ class StockBrief(BaseModel):
     name: str
     industry: str
     market: str = ""
+    asset_type: str = "Stock"
     close: float | None = None
     pct_chg: float | None = None
 
@@ -25,11 +26,29 @@ class FactorBreakdown(BaseModel):
     sentiment: float
 
 
+class TradeAdvice(BaseModel):
+    action: str
+    confidence: str
+    hold_horizon: str
+    hold_days_min: int
+    hold_days_max: int
+    position_advice: str
+    entry_price: float
+    stop_loss_pct: float
+    take_profit_pct: float
+    stop_loss_price: float
+    take_profit_price: float
+    trailing_stop_pct: float
+    checklist: list[str] = Field(default_factory=list)
+    risk_note: str = ""
+
+
 class PickItem(BaseModel):
     rank: int
     ts_code: str
     name: str
     industry: str
+    asset_type: str = "Stock"
     total_score: float
     factors: FactorBreakdown
     reason: str
@@ -38,6 +57,12 @@ class PickItem(BaseModel):
     pe: float | None = None
     pb: float | None = None
     roe: float | None = None
+    manager: str | None = None
+    metrics: dict[str, Any] | None = None
+    themes: list[str] | None = None
+    patterns: list[str] | None = None
+    dimensions: dict[str, Any] | None = None
+    advice: TradeAdvice | None = None
 
 
 class PickListResponse(BaseModel):
@@ -46,6 +71,9 @@ class PickListResponse(BaseModel):
     data_source: str
     total: int
     items: list[PickItem]
+    asset_type: str | None = None
+    methodology: str | None = None
+    market_hot_sectors: list[dict[str, Any]] | None = None
 
 
 class DiagnosisSection(BaseModel):
@@ -65,8 +93,11 @@ class DiagnosisReport(BaseModel):
     fundamental: DiagnosisSection
     technical: DiagnosisSection
     capital: DiagnosisSection
+    sentiment: DiagnosisSection | None = None
+    layers: dict[str, str] | None = None
     risks: list[str]
     signals: list[str]
+    advice: TradeAdvice | None = None
     indicators: dict[str, Any]
 
 
@@ -160,3 +191,18 @@ class BacktestReport(BaseModel):
     sharpe: float
     equity_curve: list[dict[str, Any]]
     commentary: str
+
+
+class PortfolioHoldingIn(BaseModel):
+    ts_code: str
+    weight: float | None = None
+    cost: float | None = None
+
+
+class PortfolioRequest(BaseModel):
+    holdings: list[PortfolioHoldingIn] = Field(default_factory=list)
+
+
+class AgentRequest(BaseModel):
+    ts_code: str | None = None
+    question: str = ""

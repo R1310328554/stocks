@@ -1,10 +1,12 @@
-"""API 路由聚合."""
+"""API 路由聚合：股票 / 多资产 / 诊股 / 实时 / Agent / 组合."""
 
 from __future__ import annotations
 
+import asyncio
+import json
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +14,7 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.entities import PickResult, WatchItem
 from app.schemas.api import (
+    AgentRequest,
     BacktestReport,
     BacktestRequest,
     CapitalFlowSignal,
@@ -19,15 +22,25 @@ from app.schemas.api import (
     MarketOverview,
     NaturalLanguagePickRequest,
     PickListResponse,
+    PortfolioRequest,
     TimingSignalsResponse,
     WatchItemCreate,
     WatchItemOut,
 )
+from app.services.agents import run_multi_agent_research
 from app.services.backtest import run_backtest
 from app.services.datasources import get_data_provider
+from app.services.datasources.multi_asset import list_assets
+from app.services.datasources.source_registry import source_health
 from app.services.diagnosis import diagnose_stock
+from app.services.portfolio import analyze_portfolio
+from app.services.realtime import quote_snapshot
 from app.services.sentiment import analyze_capital_flow, build_timing_signals
 from app.services.strategies import MultiFactorPicker, parse_natural_language_filters
+from app.services.strategies.asset_recommender import AssetRecommender
+from app.services.strategies.hot_picker import pick_hot
+from app.services.strategies.pattern_picker import pick_by_pattern
+from app.tasks.scheduler import get_task_status
 
 api_router = APIRouter()
 
@@ -41,7 +54,31 @@ async def health() -> dict:
         "app": settings.app_name,
         "data_source": provider.source_name,
         "data_mode": settings.data_mode,
+        "version": "0.2.0",
+        "features": [
+            "multi_factor",
+            "hot_pick",
+            "pattern_pick",
+            "nl_pick",
+            "diagnosis",
+            "trade_advice",
+            "etf_fund_lof_bond",
+            "agents",
+            "portfolio",
+            "realtime",
+        ],
     }
+
+
+@api_router.get("/meta/sources")
+async def meta_sources() -> dict:
+    settings = get_settings()
+    return source_health(live_enabled=settings.use_live_data)
+
+
+@api_router.get("/meta/tasks")
+async def meta_tasks() -> dict:
+    return get_task_status()
 
 
 @api_router.get("/market/overview", response_model=MarketOverview)
@@ -53,6 +90,15 @@ async def market_overview() -> MarketOverview:
 @api_router.get("/stocks")
 async def list_stocks(limit: int = Query(default=50, ge=1, le=200)) -> dict:
     rows = get_data_provider().list_stocks(limit=limit)
+    return {"total": len(rows), "items": rows}
+
+
+@api_router.get("/assets")
+async def assets(
+    asset_type: str | None = Query(default=None, description="stock|etf|lof|fund|bond"),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> dict:
+    rows = list_assets(asset_type=asset_type, limit=limit)
     return {"total": len(rows), "items": rows}
 
 
@@ -89,6 +135,19 @@ async def daily_picks(
     return PickListResponse(**result)
 
 
+@api_router.get("/picks/hot", response_model=PickListResponse)
+async def hot_picks(top_n: int = Query(default=15, ge=1, le=50)) -> PickListResponse:
+    return PickListResponse(**pick_hot(top_n=top_n))
+
+
+@api_router.get("/picks/pattern", response_model=PickListResponse)
+async def pattern_picks(
+    top_n: int = Query(default=15, ge=1, le=50),
+    pattern: str | None = None,
+) -> PickListResponse:
+    return PickListResponse(**pick_by_pattern(top_n=top_n, pattern=pattern))
+
+
 @api_router.post("/picks/natural", response_model=PickListResponse)
 async def natural_picks(body: NaturalLanguagePickRequest) -> PickListResponse:
     filters = parse_natural_language_filters(body.query)
@@ -103,6 +162,18 @@ async def natural_picks(body: NaturalLanguagePickRequest) -> PickListResponse:
         market=filters.get("market"),
     )
     result["strategy"] = "natural_language"
+    return PickListResponse(**result)
+
+
+@api_router.get("/recommend/{asset_type}", response_model=PickListResponse)
+async def recommend_assets(
+    asset_type: str,
+    top_n: int = Query(default=10, ge=1, le=50),
+    style: str | None = None,
+) -> PickListResponse:
+    if asset_type.lower() not in {"etf", "lof", "fund", "bond"}:
+        raise HTTPException(status_code=400, detail="asset_type 需为 etf|lof|fund|bond")
+    result = AssetRecommender().recommend(asset_type=asset_type, top_n=top_n, style=style)
     return PickListResponse(**result)
 
 
@@ -130,6 +201,26 @@ async def news(limit: int = Query(default=20, ge=1, le=50)) -> dict:
 @api_router.get("/alerts")
 async def alerts(limit: int = Query(default=15, ge=1, le=50)) -> dict:
     return {"items": get_data_provider().get_alerts(limit=limit)}
+
+
+@api_router.get("/quotes")
+async def quotes(codes: str | None = None, limit: int = Query(default=30, ge=1, le=100)) -> dict:
+    code_list = [c.strip() for c in codes.split(",")] if codes else None
+    return quote_snapshot(codes=code_list, limit=limit)
+
+
+@api_router.websocket("/ws/quotes")
+async def ws_quotes(websocket: WebSocket) -> None:
+    await websocket.accept()
+    try:
+        while True:
+            payload = quote_snapshot(limit=20)
+            await websocket.send_text(json.dumps(payload, ensure_ascii=False))
+            await asyncio.sleep(2)
+    except WebSocketDisconnect:
+        return
+    except Exception:  # noqa: BLE001
+        await websocket.close()
 
 
 @api_router.get("/watchlist", response_model=list[WatchItemOut])
@@ -175,16 +266,32 @@ async def backtest(body: BacktestRequest) -> BacktestReport:
     return BacktestReport(**report)
 
 
+@api_router.post("/portfolio/analyze")
+async def portfolio_analyze(body: PortfolioRequest) -> dict:
+    holdings = [h.model_dump() for h in body.holdings]
+    return analyze_portfolio(holdings)
+
+
+@api_router.post("/agents/research")
+async def agents_research(body: AgentRequest) -> dict:
+    return run_multi_agent_research(ts_code=body.ts_code, question=body.question)
+
+
 @api_router.get("/reports/daily")
 async def daily_report() -> dict:
     provider = get_data_provider()
     overview = provider.get_market_overview()
     picks = MultiFactorPicker().run(top_n=10)
+    hot = pick_hot(top_n=8)
+    etf = AssetRecommender().recommend("etf", top_n=5)
     signals = build_timing_signals(limit=10)
     return {
         "trade_date": date.today().isoformat(),
         "market": overview,
         "top_picks": picks["items"],
+        "hot_picks": hot["items"],
+        "etf_picks": etf["items"],
         "timing_signals": signals["items"],
         "alerts": provider.get_alerts(limit=8),
+        "sources": source_health(live_enabled=get_settings().use_live_data),
     }
