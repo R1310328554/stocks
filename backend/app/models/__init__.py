@@ -1,3 +1,3 @@
-from app.models.entities import DailyBar, PickResult, Stock, WatchItem
+from app.models.entities import DailyBar, PaperOrder, PickResult, Stock, WatchItem
 
-__all__ = ["Stock", "DailyBar", "PickResult", "WatchItem"]
+__all__ = ["Stock", "DailyBar", "PickResult", "WatchItem", "PaperOrder"]

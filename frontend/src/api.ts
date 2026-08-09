@@ -233,6 +233,206 @@ export const api = {
       body: JSON.stringify({ ts_code, question }),
     }),
   dailyReport: () => request("/reports/daily"),
+  // 数据中心
+  rankings: (kind = "gainers", limit = 15) =>
+    request<{ kind: string; items: RankingItem[] }>(`/datacenter/rankings?kind=${kind}&limit=${limit}`),
+  limitUp: () =>
+    request<{ total: number; blast_rate: number; max_boards: number; items: LimitUpItem[] }>(
+      "/datacenter/limit-up",
+    ),
+  dragonTiger: () => request<{ items: DragonTigerItem[] }>("/datacenter/dragon-tiger"),
+  heatmap: () => request<{ items: HeatmapItem[] }>("/datacenter/heatmap"),
+  calendar: (days = 10) => request<{ items: CalendarItem[] }>(`/datacenter/calendar?days=${days}`),
+  reports: (tsCode?: string) =>
+    request<{ items: ReportItem[] }>(`/datacenter/reports${tsCode ? `?ts_code=${tsCode}` : ""}`),
+  profile: (code: string) => request<CompanyProfile>(`/stock/${encodeURIComponent(code)}/profile`),
+  kline: (code: string, days = 120) =>
+    request<KlineData>(`/stock/${encodeURIComponent(code)}/kline?days=${days}`),
+  // 筛选器与策略
+  screener: (body: {
+    filters: { field: string; op: string; value: number }[];
+    industries?: string[];
+    require_patterns?: string[];
+    sort_by?: string;
+    limit?: number;
+  }) =>
+    request<{ total: number; available_fields: Record<string, string>; items: ScreenerItem[] }>(
+      "/screener/run",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  strategies: () => request<{ items: StrategyMeta[] }>("/strategies"),
+  runStrategy: (id: string, topN = 10) =>
+    request<{ strategy: StrategyMeta; total: number; items: StrategyHit[] }>(
+      `/strategies/${id}/run?top_n=${topN}`,
+    ),
+  // 模拟交易
+  paperAccount: () => request<PaperAccount>("/paper/account"),
+  paperOrder: (body: { ts_code: string; side: "buy" | "sell"; shares: number }) =>
+    request<{ id: number; price: number; amount: number }>("/paper/order", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  paperReset: () => request<{ ok: boolean }>("/paper/reset", { method: "POST" }),
+};
+
+export type RankingItem = {
+  rank: number;
+  ts_code: string;
+  name: string;
+  industry: string;
+  close: number;
+  pct_chg: number;
+  turnover: number;
+  vol_ratio: number;
+  main_net_inflow: number;
+  amount: number;
+};
+
+export type LimitUpItem = {
+  ts_code: string;
+  name: string;
+  industry: string;
+  pct_chg: number;
+  boards: number;
+  seal_amount: number;
+  open_times: number;
+  reason: string;
+};
+
+export type DragonTigerItem = {
+  ts_code: string;
+  name: string;
+  pct_chg: number;
+  reason: string;
+  buy_total: number;
+  sell_total: number;
+  net: number;
+  top_buyer: string;
+  top_seller: string;
+  institution_net: number;
+};
+
+export type HeatmapItem = {
+  name: string;
+  avg_pct: number;
+  count: number;
+  inflow: number;
+  leader: { ts_code: string; name: string; pct_chg: number } | null;
+};
+
+export type CalendarItem = {
+  date: string;
+  kind: string;
+  label: string;
+  title: string;
+  ts_code: string;
+  name: string;
+};
+
+export type ReportItem = {
+  id: string;
+  ts_code: string;
+  name: string;
+  title: string;
+  org: string;
+  rating: string;
+  target_price: number;
+  eps_forecast: number;
+  published_at: string;
+};
+
+export type CompanyProfile = {
+  ts_code: string;
+  name: string;
+  industry: string;
+  profile: Record<string, string | number>;
+  valuation: Record<string, number>;
+  finance: Record<string, number>;
+  top_holders: { name: string; ratio: number; change: string }[];
+  pledge_ratio: number;
+  unlock_next: { date: string; ratio: number };
+};
+
+export type KlineBar = {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  vol: number;
+  pct_chg: number;
+};
+
+export type KlineData = {
+  ts_code: string;
+  name: string;
+  industry: string;
+  bars: KlineBar[];
+  indicators: Record<string, unknown> & { signals?: string[] };
+};
+
+export type ScreenerItem = {
+  ts_code: string;
+  name: string;
+  industry: string;
+  close: number;
+  pct_chg: number;
+  score: number;
+  matched: Record<string, number>;
+  signals: string[];
+  patterns: string[];
+  advice?: TradeAdvice;
+};
+
+export type StrategyMeta = {
+  id: string;
+  name: string;
+  category: string;
+  desc: string;
+  source: string;
+  stats?: { win_rate: number; avg_return: number; max_drawdown: number; signals_today: number };
+};
+
+export type StrategyHit = {
+  rank: number;
+  ts_code: string;
+  name: string;
+  industry: string;
+  close: number;
+  pct_chg: number;
+  score: number;
+  direction: string;
+  why: string;
+  advice?: TradeAdvice;
+};
+
+export type PaperAccount = {
+  initial_cash: number;
+  cash: number;
+  market_value: number;
+  total_assets: number;
+  total_pnl: number;
+  total_pnl_pct: number;
+  positions: {
+    ts_code: string;
+    name: string;
+    shares: number;
+    avg_cost: number;
+    price: number;
+    market_value: number;
+    pnl: number;
+    pnl_pct: number;
+  }[];
+  orders: {
+    id: number;
+    ts_code: string;
+    name: string;
+    side: string;
+    price: number;
+    shares: number;
+    amount: number;
+    created_at: string;
+  }[];
 };
 
 export function wsQuotesUrl() {
