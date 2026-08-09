@@ -1,6 +1,6 @@
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { api, WatchItem } from "../api";
+import { api, type WatchItem } from "../api";
 
 export function Watchlist() {
   const [items, setItems] = useState<WatchItem[]>([]);

@@ -1,6 +1,6 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { api, DiagnosisReport } from "../api";
+import { api, type DiagnosisReport } from "../api";
 
 function Sparkline({ series }: { series?: { dates: string[]; close: number[]; ma20: number[] } }) {
   const path = useMemo(() => {

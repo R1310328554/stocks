@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { api, BacktestReport } from "../api";
+import { api, type BacktestReport } from "../api";
 
 export function Backtest() {
   const [report, setReport] = useState<BacktestReport | null>(null);

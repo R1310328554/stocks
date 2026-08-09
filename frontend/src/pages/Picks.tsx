@@ -1,6 +1,6 @@
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { api, PickItem, PickListResponse } from "../api";
+import { api, type PickItem, type PickListResponse } from "../api";
 
 function FactorBars({ factors }: { factors: PickItem["factors"] }) {
   const entries: [string, number][] = [

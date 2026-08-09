@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertItem, api, MarketOverview, SignalItem } from "../api";
+import { api, type AlertItem, type MarketOverview, type SignalItem } from "../api";
 
 export function Market() {
   const [market, setMarket] = useState<MarketOverview | null>(null);
