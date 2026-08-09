@@ -31,8 +31,8 @@ def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
         title=settings.app_name,
-        description="面向经验不足、资金有限用户的智能选股平台 MVP",
-        version="0.1.0",
+        description="多资产智能投研平台：选股/基金/ETF/LOF/债券 + 评分与交易建议",
+        version="0.2.0",
         lifespan=lifespan,
     )
     app.add_middleware(

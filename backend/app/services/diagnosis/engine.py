@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import date
 
+import numpy as np
+
+from app.services.advice.trade_plan import build_trade_advice
 from app.services.datasources import get_data_provider
 from app.services.indicators.technical import compute_indicators, detect_patterns
 from app.services.sentiment.capital_flow import analyze_capital_flow
@@ -131,8 +134,31 @@ def diagnose_stock(ts_code: str) -> dict:
     if not risks:
         risks.append("暂无明显硬性风险信号，仍需结合仓位与宏观环境")
 
-    overall = round(f_score * 0.35 + t_score * 0.35 + c_score * 0.3, 1)
+    # 情绪与事件维度（多层次）
+    e_score = float(np.clip(50 + fund["turnover"] * 3 + (5 if fund["main_net_inflow"] > 0 else -5), 0, 100))
+    e_details = [
+        f"换手率 {fund['turnover']}%",
+        f"波动率 {ind.get('volatility', 0)}%",
+        "事件面：关注公告与政策催化（巨潮/交易所披露）",
+    ]
+    overall = round(f_score * 0.28 + t_score * 0.28 + c_score * 0.24 + e_score * 0.2, 1)
     signals = list(ind.get("signals", [])) + patterns
+    advice = build_trade_advice(
+        close=float(ind.get("close", 0)),
+        total_score=overall,
+        volatility=float(ind.get("volatility", 20)),
+        rsi=float(ind.get("rsi14", 50)),
+        ret_20=float(ind.get("ret_20", 0)),
+        asset_type="Stock",
+        factors={
+            "value": f_score,
+            "growth": f_score,
+            "quality": f_score,
+            "momentum": t_score,
+            "capital": c_score,
+            "sentiment": e_score,
+        },
+    )
 
     return {
         "ts_code": stock["ts_code"],
@@ -159,11 +185,24 @@ def diagnose_stock(ts_code: str) -> dict:
             "summary": "主力/北向/大宗资金合力判断",
             "details": c_details,
         },
+        "sentiment": {
+            "score": round(e_score, 1),
+            "level": _level(e_score),
+            "summary": "交易拥挤度与市场情绪",
+            "details": e_details,
+        },
+        "layers": {
+            "macro": "结合大盘情绪与北向/两融定方向",
+            "industry": f"所属行业：{stock.get('industry', '未知')}",
+            "company": "财务质量 + 估值性价比",
+            "trading": "技术信号 + 资金合力 + 止损止盈纪律",
+        },
         "risks": risks,
         "signals": signals,
+        "advice": advice,
         "indicators": {
             k: v
             for k, v in ind.items()
             if k != "series"
-        } | {"series": ind.get("series", {}), "fundamentals": fund},
+        } | {"series": ind.get("series", {}), "fundamentals": fund, "capital_flow": capital},
     }

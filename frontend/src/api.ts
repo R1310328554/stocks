@@ -21,11 +21,29 @@ export type FactorBreakdown = {
   sentiment: number;
 };
 
+export type TradeAdvice = {
+  action: string;
+  confidence: string;
+  hold_horizon: string;
+  hold_days_min: number;
+  hold_days_max: number;
+  position_advice: string;
+  entry_price: number;
+  stop_loss_pct: number;
+  take_profit_pct: number;
+  stop_loss_price: number;
+  take_profit_price: number;
+  trailing_stop_pct: number;
+  checklist: string[];
+  risk_note: string;
+};
+
 export type PickItem = {
   rank: number;
   ts_code: string;
   name: string;
   industry: string;
+  asset_type?: string;
   total_score: number;
   factors: FactorBreakdown;
   reason: string;
@@ -34,6 +52,11 @@ export type PickItem = {
   pe?: number;
   pb?: number;
   roe?: number;
+  manager?: string;
+  metrics?: Record<string, string | number>;
+  themes?: string[];
+  patterns?: string[];
+  advice?: TradeAdvice;
 };
 
 export type PickListResponse = {
@@ -42,6 +65,8 @@ export type PickListResponse = {
   data_source: string;
   total: number;
   items: PickItem[];
+  asset_type?: string;
+  methodology?: string;
 };
 
 export type MarketOverview = {
@@ -68,8 +93,11 @@ export type DiagnosisReport = {
   fundamental: { score: number; level: string; summary: string; details: string[] };
   technical: { score: number; level: string; summary: string; details: string[] };
   capital: { score: number; level: string; summary: string; details: string[] };
+  sentiment?: { score: number; level: string; summary: string; details: string[] };
+  layers?: Record<string, string>;
   risks: string[];
   signals: string[];
+  advice?: TradeAdvice;
   indicators: Record<string, unknown>;
 };
 
@@ -114,20 +142,56 @@ export type BacktestReport = {
   commentary: string;
 };
 
+export type QuoteItem = {
+  ts_code: string;
+  name: string;
+  price: number;
+  pct_chg: number;
+  volume: number;
+  updated_at: string;
+};
+
+export type SourceHealth = {
+  total: number;
+  live: number;
+  configured: number;
+  demo_fallback: number;
+  reliability_score: number;
+  guidance: string;
+  items: {
+    id: string;
+    name: string;
+    tier: string;
+    authority: string;
+    coverage: string[];
+    status: string;
+    notes: string;
+  }[];
+};
+
 export const api = {
-  health: () => request<{ status: string; data_source: string }>("/health"),
+  health: () => request<{ status: string; data_source: string; features: string[] }>("/health"),
+  sources: () => request<SourceHealth>("/meta/sources"),
   market: () => request<MarketOverview>("/market/overview"),
   picks: (topN = 20) => request<PickListResponse>(`/picks/daily?top_n=${topN}`),
+  hotPicks: (topN = 15) => request<PickListResponse>(`/picks/hot?top_n=${topN}`),
+  patternPicks: (topN = 15) => request<PickListResponse>(`/picks/pattern?top_n=${topN}`),
   naturalPicks: (query: string, topN = 15) =>
     request<PickListResponse>("/picks/natural", {
       method: "POST",
       body: JSON.stringify({ query, top_n: topN }),
     }),
+  recommend: (assetType: "etf" | "lof" | "fund" | "bond", topN = 10) =>
+    request<PickListResponse>(`/recommend/${assetType}?top_n=${topN}`),
   diagnosis: (code: string) => request<DiagnosisReport>(`/diagnosis/${encodeURIComponent(code)}`),
   capitalFlow: (code: string) => request(`/capital-flow/${encodeURIComponent(code)}`),
   signals: () => request<{ trade_date: string; items: SignalItem[] }>("/signals/timing"),
   alerts: () => request<{ items: AlertItem[] }>("/alerts"),
-  news: () => request<{ items: { id: string; title: string; source: string; name: string; published_at: string }[] }>("/news"),
+  news: () =>
+    request<{ items: { id: string; title: string; source: string; name: string; published_at: string }[] }>(
+      "/news",
+    ),
+  quotes: () => request<{ server_time: string; items: QuoteItem[] }>("/quotes"),
   watchlist: () => request<WatchItem[]>("/watchlist"),
   addWatch: (body: { ts_code: string; name?: string; group_name?: string; note?: string }) =>
     request<WatchItem>("/watchlist", { method: "POST", body: JSON.stringify(body) }),
@@ -137,5 +201,41 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ strategy: "multi_factor", top_n: 10 }),
     }),
+  portfolio: (holdings: { ts_code: string; weight?: number; cost?: number }[] = []) =>
+    request<{
+      portfolio_score: number;
+      concentration_top: number;
+      holdings: Array<{
+        ts_code: string;
+        name: string;
+        asset_type: string;
+        weight: number;
+        score: number;
+        level: string;
+        advice?: TradeAdvice;
+      }>;
+      suggestions: string[];
+      allocation_hint: Record<string, string>;
+    }>("/portfolio/analyze", {
+      method: "POST",
+      body: JSON.stringify({ holdings }),
+    }),
+  agents: (ts_code?: string, question?: string) =>
+    request<{
+      question: string;
+      target: { ts_code: string; name: string };
+      consensus_score: number;
+      decision: string;
+      experts: { agent: string; summary: string; stance: string; points: string[] }[];
+      trade_advice?: TradeAdvice;
+    }>("/agents/research", {
+      method: "POST",
+      body: JSON.stringify({ ts_code, question }),
+    }),
   dailyReport: () => request("/reports/daily"),
 };
+
+export function wsQuotesUrl() {
+  const base = API_BASE.replace(/^http/, "ws");
+  return `${base}/ws/quotes`;
+}
