@@ -1,0 +1,16 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+sqlalchemy>=2.0.36
+aiosqlite>=0.20.0
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
+pandas>=2.2.0
+numpy>=2.0.0
+httpx>=0.28.0
+apscheduler>=3.10.4
+python-dotenv>=1.0.1
+orjson>=3.10.0
+python-multipart>=0.0.20
+# 可选实时数据源（配置 TUSHARE_TOKEN 后启用）
+# tushare>=1.4.16
+# akshare>=1.15.0
