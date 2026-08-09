@@ -145,7 +145,9 @@ export function Picks() {
                   >
                     <td>#{item.rank}</td>
                     <td>
-                      <strong>{item.name}</strong>
+                      <Link to={`/stock/${item.ts_code}`} onClick={(e) => e.stopPropagation()}>
+                        <strong>{item.name}</strong>
+                      </Link>
                       <div className="muted">
                         {item.ts_code} · {item.industry}
                       </div>

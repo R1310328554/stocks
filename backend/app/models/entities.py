@@ -57,6 +57,19 @@ class PickResult(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class PaperOrder(Base):
+    __tablename__ = "paper_orders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ts_code: Mapped[str] = mapped_column(String(16), index=True)
+    name: Mapped[str] = mapped_column(String(64))
+    side: Mapped[str] = mapped_column(String(8))  # buy | sell
+    price: Mapped[float] = mapped_column(Float)
+    shares: Mapped[int] = mapped_column(Integer)
+    amount: Mapped[float] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class WatchItem(Base):
     __tablename__ = "watch_items"
     __table_args__ = (UniqueConstraint("group_name", "ts_code", name="uq_watch"),)
