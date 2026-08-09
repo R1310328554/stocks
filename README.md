@@ -1,4 +1,49 @@
-# stocks
+# 智选投 · 智能选股平台
+
+面向经验不足、资金有限用户的选股 MVP：多因子选股、诊股、择时信号、市场看板、自选与轻量回测。
+
+## 快速开始
+
+```bash
+# 1) 后端（默认演示数据，无需外部密钥）
+cd backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+DATA_MODE=demo uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# 2) 前端（另开终端）
+cd frontend
+npm install
+npm run dev
+```
+
+- Web：http://127.0.0.1:5173
+- API 文档：http://127.0.0.1:8000/docs
+- 配置模板：`.env.example`
+
+接入真实行情时，设置 `TUSHARE_TOKEN` 并将 `DATA_MODE=auto`（或 `live`）。无密钥时自动降级演示数据，接口形态保持一致。
+
+```bash
+# 或使用 Docker
+docker compose up --build
+```
+
+### 已实现能力（Phase 1 + 部分 Phase 2/3）
+
+| 模块 | 说明 |
+|------|------|
+| 多因子选股 | 价值/成长/质量/动量/资金/情绪六类因子加权打分 |
+| 自然语言选股 | 规则解析 PE/ROE/行业/形态等条件 |
+| 技术指标 | MA/MACD/RSI/布林带/神奇九转 + 轻量形态识别 |
+| 智能诊股 | 基本面/技术面/资金面评分 + 风险提示 |
+| 主力情绪 | 融资融券 + 北向 + 大宗 三源共识/背离/拥挤度 |
+| 择时信号 / AI盯盘 | 技术与资金信号、异动列表 |
+| 数据看板 | 指数、情绪、热点板块、资讯 |
+| 自选管理 | 分组自选增删 |
+| 策略回测 | 基于榜单成分的近端收益近似 |
+| 定时任务 | 选股计算 / 情绪指数 / 数据质量检查 |
+
+---
 
 ## 一、整体架构设计
 
