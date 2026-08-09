@@ -452,6 +452,73 @@ textarea:focus {
   max-width: 100%;
 }
 
+.heatmap {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 0.5rem;
+}
+
+.heat-cell {
+  border-radius: 10px;
+  padding: 0.55rem 0.6rem;
+  display: grid;
+  gap: 0.15rem;
+  border: 1px solid var(--line);
+  transition: transform 0.15s ease;
+}
+
+.heat-cell:hover {
+  transform: translateY(-2px);
+}
+
+.heat-cell span {
+  font-size: 0.82rem;
+}
+
+.cond-row {
+  display: grid;
+  grid-template-columns: 1.4fr 0.6fr 1fr auto;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+select {
+  background: rgba(7, 21, 28, 0.65);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text);
+  padding: 0.7rem 1rem;
+  outline: none;
+}
+
+.strategy-card {
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  color: inherit;
+  font: inherit;
+}
+
+.strategy-card:hover {
+  border-color: rgba(200, 242, 109, 0.4);
+}
+
+.strategy-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset, var(--shadow);
+}
+
+.kline {
+  width: 100%;
+  height: auto;
+}
+
+@media (max-width: 900px) {
+  .cond-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 @keyframes rise-in {
   from {
     opacity: 0;

@@ -27,8 +27,23 @@ from app.schemas.api import (
     WatchItemCreate,
     WatchItemOut,
 )
+from pydantic import BaseModel, Field
+
 from app.services.agents import run_multi_agent_research
 from app.services.backtest import run_backtest
+from app.services.marketdata.datacenter import (
+    company_profile,
+    dragon_tiger,
+    event_calendar,
+    kline,
+    limit_up_pool,
+    rankings,
+    research_reports,
+    sector_heatmap,
+)
+from app.services.strategies.screener import run_screener
+from app.services.strategies.strategy_center import list_strategies, run_strategy
+from app.services.trading.paper import account_state, place_order, reset_account
 from app.services.datasources import get_data_provider
 from app.services.datasources.multi_asset import list_assets
 from app.services.datasources.source_registry import source_health
@@ -275,6 +290,122 @@ async def portfolio_analyze(body: PortfolioRequest) -> dict:
 @api_router.post("/agents/research")
 async def agents_research(body: AgentRequest) -> dict:
     return run_multi_agent_research(ts_code=body.ts_code, question=body.question)
+
+
+# ---------- 数据中心 ----------
+
+
+@api_router.get("/datacenter/rankings")
+async def dc_rankings(
+    kind: str = Query(default="gainers", description="gainers|losers|turnover|vol_ratio|inflow|amount"),
+    limit: int = Query(default=15, ge=1, le=50),
+) -> dict:
+    return rankings(kind=kind, limit=limit)
+
+
+@api_router.get("/datacenter/limit-up")
+async def dc_limit_up() -> dict:
+    return limit_up_pool()
+
+
+@api_router.get("/datacenter/dragon-tiger")
+async def dc_dragon_tiger(limit: int = Query(default=12, ge=1, le=30)) -> dict:
+    return dragon_tiger(limit=limit)
+
+
+@api_router.get("/datacenter/heatmap")
+async def dc_heatmap() -> dict:
+    return sector_heatmap()
+
+
+@api_router.get("/datacenter/calendar")
+async def dc_calendar(days: int = Query(default=10, ge=1, le=30)) -> dict:
+    return event_calendar(days=days)
+
+
+@api_router.get("/datacenter/reports")
+async def dc_reports(ts_code: str | None = None, limit: int = Query(default=12, ge=1, le=30)) -> dict:
+    return research_reports(ts_code=ts_code, limit=limit)
+
+
+@api_router.get("/stock/{ts_code}/profile")
+async def stock_profile(ts_code: str) -> dict:
+    return company_profile(ts_code)
+
+
+@api_router.get("/stock/{ts_code}/kline")
+async def stock_kline(ts_code: str, days: int = Query(default=120, ge=20, le=250)) -> dict:
+    return kline(ts_code, days=days)
+
+
+# ---------- 筛选器与策略中心 ----------
+
+
+class ScreenerFilter(BaseModel):
+    field: str
+    op: str = "gte"
+    value: float
+
+
+class ScreenerRequest(BaseModel):
+    filters: list[ScreenerFilter] = Field(default_factory=list)
+    industries: list[str] | None = None
+    require_signals: list[str] | None = None
+    require_patterns: list[str] | None = None
+    sort_by: str = "score"
+    limit: int = Field(default=30, ge=1, le=100)
+
+
+@api_router.post("/screener/run")
+async def screener_run(body: ScreenerRequest) -> dict:
+    return run_screener(
+        filters=[f.model_dump() for f in body.filters],
+        industries=body.industries,
+        require_signals=body.require_signals,
+        require_patterns=body.require_patterns,
+        sort_by=body.sort_by,
+        limit=body.limit,
+    )
+
+
+@api_router.get("/strategies")
+async def strategies_list() -> dict:
+    return list_strategies()
+
+
+@api_router.get("/strategies/{strategy_id}/run")
+async def strategies_run(strategy_id: str, top_n: int = Query(default=10, ge=1, le=30)) -> dict:
+    try:
+        return run_strategy(strategy_id, top_n=top_n)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+# ---------- 模拟交易 ----------
+
+
+class PaperOrderRequest(BaseModel):
+    ts_code: str
+    side: str = Field(pattern="^(buy|sell)$")
+    shares: int = Field(ge=100)
+
+
+@api_router.get("/paper/account")
+async def paper_account(db: AsyncSession = Depends(get_db)) -> dict:
+    return await account_state(db)
+
+
+@api_router.post("/paper/order")
+async def paper_order(body: PaperOrderRequest, db: AsyncSession = Depends(get_db)) -> dict:
+    try:
+        return await place_order(db, body.ts_code, body.side, body.shares)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@api_router.post("/paper/reset")
+async def paper_reset(db: AsyncSession = Depends(get_db)) -> dict:
+    return await reset_account(db)
 
 
 @api_router.get("/reports/daily")
